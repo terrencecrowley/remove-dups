@@ -4,7 +4,8 @@
 
 typedef unsigned _int8 uint8;
 typedef unsigned _int32 uint32;
-typedef Clock std::chrono::high_resolution_clock;
+typedef std::chrono::high_resolution_clock Clock;
+typedef std::chrono::time_point<Clock> ClockValue;
 
 
 class Tester

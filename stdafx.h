@@ -8,11 +8,13 @@
 #include "targetver.h"
 
 #include <stdio.h>
+#include <assert.h>
 #include <tchar.h>
 #include <iostream>
 #include <vector>
 #include <unordered_set>
 #include <cstdlib>
 #include <chrono>
+#include <random>
 
 
