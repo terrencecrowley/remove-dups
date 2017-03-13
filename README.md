@@ -14,11 +14,16 @@ The available algorithms are:
 
 # Command line options
 Options are:
+
 1. [-n count] Indicates how many of the fixed number (0 through 10) of array sizes to use.
+
 2. [-u count] Indicates how many of the fixed number (0 through 10) of unique values to use.
+
 3. [-l] Only generate a limited range of values (0 to u-1). Otherwise will run tests with both a limited
 range and with random 32bit integers.
+
 4. [-t (all | baseline | nsquare | sort | trie | set)] Specify which tests to run. This option may be specified multiple times to include multiple tests.
+
 5. [-s] Perform a Knuth shuffle on the array before removing duplicates. Otherwise the approach to generating the initial array is to generate all the unique values at the front of the array and then replicate as necessary to fill the rest of the array.
 
 # Output
