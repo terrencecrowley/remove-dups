@@ -7,40 +7,79 @@
 class TimeIt
 {
   public:
-  	TimeIt(const char* msg)
+  	TimeIt()
 		{
-			_msg = msg;
+			_start = Clock::now();
+			_end = _start;
+		}
+	~TimeIt() { }
+
+	void start()
+		{
 			_start = Clock::now();
 		}
-	~TimeIt()
-		{
-		}
-	void End()
+
+	void end()
 		{
 			_end = Clock::now();
-			std::cout << _msg
-					  << ","
-					  << std::chrono::duration_cast<std::chrono::nanoseconds>(_end - _start).count()
-					  << ",";
+		}
+
+	_int64 micro()
+		{
+		  	return std::chrono::duration_cast<std::chrono::microseconds>(_end - _start).count();
 		}
 
 
   private:
-  	const char* _msg;
 	ClockValue _start;
 	ClockValue _end;
 };
 
+class Tester
+{
+public:
+	virtual const char* name() = 0;
+	virtual void init(uint32* a, size_t n) = 0;
+	virtual void empty() = 0;
+	virtual void insert(uint32* pu) = 0;
+	virtual bool test(uint32* pu) = 0;
+	virtual void validate(bool b) { assert(b); }
+
+	void run(uint32* a, size_t n, size_t u)
+		{
+			uint32 *p1 = a;
+			uint32 *p2 = a;
+			uint32 *e = a + n;
+
+			init(a, n);
+			for (; p2 < e; p2++)
+			{
+				if (! test(p2))
+				{
+					insert(p2);
+					*p1++ = *p2;
+				}
+			}
+			validate(p1 - a == u);
+		}
+};
+
+typedef Tester* TesterP;
+
 class TrieTester : public Tester
 {
   public:
-  	TrieTester(uint32*, size_t) {}
+  	TrieTester() : _pt(0) {}
+	~TrieTester() { delete _pt; }
 
-	virtual void insert(uint32* up) { _t.insert(*up); }
-	virtual bool test(uint32* up) { return _t.test(*up); }
+	virtual const char* name() { return "trie"; }
+  	virtual void init(uint32*, size_t) { delete _pt; _pt = new Trie; }
+	virtual void empty() { delete _pt; _pt = 0; }
+	virtual void insert(uint32* up) { _pt->insert(*up); }
+	virtual bool test(uint32* up) { return _pt->test(*up); }
 
   private:
-  	Trie _t;
+  	Trie* _pt;
 };
 
 int uint32cmp(const void* v1, const void* v2)
@@ -54,11 +93,11 @@ int uint32cmp(const void* v1, const void* v2)
 class SortTester : public Tester
 {
   public:
-  	SortTester(uint32* a, size_t n) : _a(a)
-		{
-			qsort(_a, n, sizeof(uint32), uint32cmp);
-		}
+	  SortTester() : _a(0) {}
 
+	virtual const char* name() { return "sort"; }
+	virtual void init(uint32* a, size_t n) { _a = a; qsort(_a, n, sizeof(uint32), uint32cmp); }
+	virtual void empty() { _a = 0; }
 	virtual void insert(uint32* up) {}
 	virtual bool test(uint32* up) { if (up == _a) return false; return up[0] == up[-1]; }
 
@@ -70,8 +109,11 @@ class SortTester : public Tester
 class SquareTester : public Tester
 {
   public:
-  	SquareTester(uint32* a, size_t) : _a(a), _e(a) {}
+  	SquareTester() : _a(0), _e(0) {}
 
+	virtual const char* name() { return "nsquare"; }
+	virtual void init(uint32* a, size_t) { _a = a; _e = a; }
+	virtual void empty() { _a = 0; _e = 0; }
 	virtual void insert(uint32* up) { *_e++ = *up; }
 	virtual bool test(uint32* up)
 		{
@@ -88,76 +130,32 @@ class SquareTester : public Tester
 class SetTester : public Tester
 {
   public:
-  	SetTester(uint32*, size_t n) : _set(n) {}
+  	SetTester() : _pset(0) {}
+	~SetTester() { delete _pset; }
 
-	virtual void insert(uint32* up) { if (!test(up)) _set.insert(*up); }
-	virtual bool test(uint32* up) { return _set.count(*up) != 0; }
+	virtual const char* name() { return "set"; }
+	virtual void init(uint32*, size_t n) { delete _pset; _pset = new std::unordered_set<uint32>(n); }
+	virtual void empty() { delete _pset; _pset = 0; }
+	virtual void insert(uint32* up) { if (!test(up)) _pset->insert(*up); }
+	virtual bool test(uint32* up) { return _pset->count(*up) != 0; }
 
   private:
-  	std::unordered_set<uint32> _set;
+  	std::unordered_set<uint32>* _pset;
 };
 
 class BaselineTester : public Tester
 {
   public:
-  	BaselineTester(uint32*, size_t) {}
+  	BaselineTester() {}
 
+	virtual const char* name() { return "baseline"; }
+	virtual void init(uint32*,size_t) {}
+	virtual void empty() { }
 	virtual void insert(uint32*) {}
 	virtual bool test(uint32*) { return false; }
+	virtual void validate(bool b) {}
 };
 
-void RunTest(Tester& t, uint32* a, size_t n, size_t u)
-{
-	uint32 *p1 = a;
-	uint32 *p2 = a;
-	uint32 *e = a + n;
-
-	for (; p2 < e; p2++)
-	{
-		if (! t.test(p2))
-		{
-			t.insert(p2);
-			*p1++ = *p2;
-		}
-	}
-	assert(p1 - a == u);
-}
-
-void TrieTest(uint32* a, size_t n, size_t u)
-{
-	TrieTester t(a, n);
-
-	RunTest(t, a, n, u);
-}
-
-void SortTest(uint32* a, size_t n, size_t u)
-{
-	SortTester t(a, n);
-
-	RunTest(t, a, n, u);
-}
-
-void SquareTest(uint32* a, size_t n, size_t u)
-{
-	SquareTester t(a, n);
-
-	RunTest(t, a, n, u);
-}
-
-void SetTest(uint32* a, size_t n, size_t u)
-{
-	SetTester t(a, n);
-
-	RunTest(t, a, n, u);
-}
-
-
-void BaselineTest(uint32* a, size_t n, size_t u)
-{
-	BaselineTester t(a, n);
-
-	RunTest(t, a, n, u);
-}
 
 enum class UniqueAlgorithm { Random, Linear };		// Fill range with random numbers or linear and repeat?
 
@@ -210,17 +208,6 @@ void FillArray(uint32* a, size_t n, size_t u, UniqueAlgorithm fill, bool bShuffl
 }
 
 
-void PrintHeader()
-{
-	std::cout << "Algo,NSecs,NSize,NUnique,UniqueAlgorithm\n";
-}
-
-void PrintFill(size_t n, size_t u, UniqueAlgorithm fill)
-{
-	std::cout << n << "," << u << "," << int(fill) << "\n";
-
-}
-
 
 size_t SizeCounts[] = { 1 << 4, 1 << 6, 1 << 8, 1 << 10, 1 << 12, 1 << 14, 1 << 16, 1 << 18, 1 << 20, 1 << 22 };
 #define NSIZES (sizeof(SizeCounts)/sizeof(SizeCounts[0]))
@@ -237,6 +224,7 @@ UniqueAlgorithm Algos[] = { UniqueAlgorithm::Linear, UniqueAlgorithm::Random };
 #define TEST_TRIE		(1<<3)
 #define TEST_SET		(1<<4)
 #define TEST_ALL		(TEST_BASELINE|TEST_SORT|TEST_NSQUARE|TEST_TRIE|TEST_SET)
+#define NTESTS			5
 
 int usage()
 {
@@ -252,6 +240,8 @@ int main(int argc, const char* argv[])
 	size_t nalgos = NALGOS;
 	bool bFirstTest = true;
 	bool bShuffle = false;
+	TesterP testers[NTESTS] = { };
+	TimeIt timeit;
 
 	for (argc--, argv++; argc > 0; argc--, argv++)
 	{
@@ -310,44 +300,91 @@ int main(int argc, const char* argv[])
 		return usage();
 	if (nuniques > NUNIQUES)
 		return usage();
+	size_t ntests = 0;
+	if (tests & TEST_BASELINE)
+		testers[ntests++] = new BaselineTester();
+	if (tests & TEST_SORT)
+		testers[ntests++] = new SortTester();
+	if (tests & TEST_NSQUARE)
+		testers[ntests++] = new SquareTester();
+	if (tests & TEST_TRIE)
+		testers[ntests++] = new TrieTester();
+	if (tests & TEST_SET)
+		testers[ntests++] = new SetTester();
 
-	PrintHeader();
+	/*
+	std::cout << "Algo,uSecs,NSize,NUnique,UniqueAlgorithm\n";
 	for (size_t i = 0; i < nsizes; i++)
 		for (size_t j = 0; j < nuniques; j++)
 			for (size_t k = 0; k < nalgos; k++)
+				for (size_t t = 0; t < ntests; t++)
+				{
+					size_t n = SizeCounts[i];
+					size_t u = UniqueCounts[j];
+					if (u > n) continue;
+					UniqueAlgorithm algo = Algos[k];
+					uint32* a = new uint32[n];
+					TesterP tp = testers[t];
+
+					FillArray(a, n, u, algo, bShuffle);
+					timeit.start();
+					tp->init(a, n);
+					tp->run(a, n, u);
+					tp->empty();
+					timeit.end();
+					std::cout << tp->name() << "," << timeit.micro() << ",";
+					std::cout << n << "," << u << "," << int(fill) << "\n";
+
+					delete[] a;
+				}
+	*/
+
+	// The Column Headers
+	std::cout << "Algo,Size,";
+	for (size_t j = 0; j < nuniques; j++)
+		for (size_t k = 0; k < nalgos; k++)
+			std::cout << "U" << UniqueCounts[j] << "/" << ((k == 0) ? "L," : "R,");
+	std::cout << "\n";
+
+	// The data
+	for (size_t t = 0; t < ntests; t++)
+	{
+		TesterP tp = testers[t];
+		for (size_t i = 0; i < nsizes; i++)
+		{
+			size_t n = SizeCounts[i];
+			std::cout << tp->name() << "," << n << ",";
+
+			for (size_t j = 0; j < nuniques; j++)
 			{
-				size_t n = SizeCounts[i];
 				size_t u = UniqueCounts[j];
-				if (u > n) continue;
-				UniqueAlgorithm algo = Algos[k];
-				uint32* a = new uint32[n];
-				if (tests & TEST_BASELINE)
+
+				for (size_t k = 0; k < nalgos; k++)
 				{
-					FillArray(a, n, u, algo, bShuffle);
-					{ TimeIt t("Baseline"); BaselineTest(a, n, n); t.End(); PrintFill(n, u, algo); }
+					if (u <= n)
+					{
+						UniqueAlgorithm algo = Algos[k];
+						uint32* a = new uint32[n];
+
+						FillArray(a, n, u, algo, bShuffle);
+						timeit.start();
+						tp->init(a, n);
+						tp->run(a, n, u);
+						tp->empty();
+						timeit.end();
+
+						delete[] a;
+						std::cout << timeit.micro() << ",";
+					}
+					else
+						std::cout << "_,";
 				}
-				if (tests & TEST_SORT)
-				{
-					FillArray(a, n, u, algo, bShuffle);
-					{ TimeIt t("Sort"); SortTest(a, n, u); t.End(); PrintFill(n, u, algo); }
-				}
-				if (tests & TEST_NSQUARE)
-				{
-					FillArray(a, n, u, algo, bShuffle);
-					{ TimeIt t("NSquare"); SquareTest(a, n, u); t.End(); PrintFill(n, u, algo); }
-				}
-				if (tests & TEST_TRIE)
-				{
-					FillArray(a, n, u, algo, bShuffle);
-					{ TimeIt t("Trie"); TrieTest(a, n, u); t.End(); PrintFill(n, u, algo); }
-				}
-				if (tests & TEST_SET)
-				{
-					FillArray(a, n, u, algo, bShuffle);
-					{ TimeIt t("Set"); SetTest(a, n, u); t.End(); PrintFill(n, u, algo); }
-				}
-				delete[] a;
 			}
+			std::cout << "\n";
+		}
+	}
+
+
     return 0;
 }
 
