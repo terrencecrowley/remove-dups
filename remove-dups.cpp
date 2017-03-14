@@ -82,6 +82,22 @@ class TrieTester : public Tester
   	Trie* _pt;
 };
 
+class Trie16Tester : public Tester
+{
+  public:
+  	Trie16Tester() : _pt(0) {}
+	~Trie16Tester() { delete _pt; }
+
+	virtual const char* name() { return "trie16"; }
+  	virtual void init(uint32*, size_t) { delete _pt; _pt = new Trie16; }
+	virtual void empty() { delete _pt; _pt = 0; }
+	virtual void insert(uint32* up) { _pt->insert(*up); }
+	virtual bool test(uint32* up) { return _pt->test(*up); }
+
+  private:
+  	Trie16* _pt;
+};
+
 int uint32cmp(const void* v1, const void* v2)
 {
 	const uint32* u1 = static_cast<const uint32*>(v1);
@@ -189,8 +205,17 @@ void FillArray(uint32* a, size_t n, size_t u, UniqueAlgorithm fill, bool bShuffl
 	switch (fill)
 	{
 		case UniqueAlgorithm::Random:
-			for (size_t i = 0; i < u; i++)
-				a[i] = s_dist(s_gen);
+			{
+				Trie t;	// make sure random values are not duplicated
+
+				for (size_t i = 0; i < u; i++)
+				{
+					uint32 x = s_dist(s_gen);
+					if (t.test(x)) { i--; continue; }
+					t.insert(x);
+					a[i] = x;
+				}
+			}
 			break;
 		case UniqueAlgorithm::Linear:
 			for (size_t i = 0; i < u; i++)
@@ -223,12 +248,13 @@ UniqueAlgorithm Algos[] = { UniqueAlgorithm::Linear, UniqueAlgorithm::Random };
 #define TEST_NSQUARE	(1<<2)
 #define TEST_TRIE		(1<<3)
 #define TEST_SET		(1<<4)
-#define TEST_ALL		(TEST_BASELINE|TEST_SORT|TEST_NSQUARE|TEST_TRIE|TEST_SET)
-#define NTESTS			5
+#define TEST_TRIE16		(1<<5)
+#define TEST_ALL		(TEST_BASELINE|TEST_SORT|TEST_NSQUARE|TEST_TRIE|TEST_SET|TEST_TRIE16)
+#define NTESTS			6
 
 int usage()
 {
-	std::cerr << "usage: remove-dups [-n count] [-u count] [-s] [-r] [-l] [-t (all | baseline | sort | nsquare | trie | set)]\n";
+	std::cerr << "usage: remove-dups [-n count] [-u count] [-s] [-r] [-l] [-t (all | baseline | sort | nsquare | trie | set | trie16)]\n";
 	return 1;
 }
 
@@ -288,6 +314,8 @@ int main(int argc, const char* argv[])
 						tests |= TEST_NSQUARE;
 					else if (_stricmp(arg, "trie") == 0)
 						tests |= TEST_TRIE;
+					else if (_stricmp(arg, "trie16") == 0)
+						tests |= TEST_TRIE16;
 					else if (_stricmp(arg, "set") == 0)
 						tests |= TEST_SET;
 					break;
@@ -309,6 +337,8 @@ int main(int argc, const char* argv[])
 		testers[ntests++] = new SquareTester();
 	if (tests & TEST_TRIE)
 		testers[ntests++] = new TrieTester();
+	if (tests & TEST_TRIE16)
+		testers[ntests++] = new Trie16Tester();
 	if (tests & TEST_SET)
 		testers[ntests++] = new SetTester();
 
