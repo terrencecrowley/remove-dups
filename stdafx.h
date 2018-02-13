@@ -16,5 +16,7 @@
 #include <cstdlib>
 #include <chrono>
 #include <random>
+#include <windows.h>
+#include <psapi.h>
 
 

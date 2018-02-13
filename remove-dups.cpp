@@ -254,8 +254,24 @@ UniqueAlgorithm Algos[] = { UniqueAlgorithm::Linear, UniqueAlgorithm::Random };
 
 int usage()
 {
-	std::cerr << "usage: remove-dups [-n count] [-u count] [-s] [-r] [-l] [-t (all | baseline | sort | nsquare | trie | set | trie16)]\n";
+	std::cerr << "usage: remove-dups [-c runs] [-n count] [-u count] [-s] [-r] [-l] [-t (all | baseline | sort | nsquare | trie | set | trie16)]\n";
 	return 1;
+}
+
+size_t GetWorkingSet()
+{
+	size_t nWS = 0;
+	HANDLE hProcess;
+	PROCESS_MEMORY_COUNTERS pmc;
+
+	hProcess = OpenProcess(PROCESS_QUERY_INFORMATION | PROCESS_VM_READ, FALSE, GetCurrentProcessId());
+	if (hProcess != NULL)
+	{
+		if (GetProcessMemoryInfo(hProcess, &pmc, sizeof(pmc)))
+			nWS = pmc.WorkingSetSize;
+		CloseHandle(hProcess);
+	}
+	return nWS;
 }
 
 int main(int argc, const char* argv[])
@@ -264,6 +280,7 @@ int main(int argc, const char* argv[])
 	size_t nuniques = NUNIQUES;
 	size_t tests = TEST_ALL;
 	size_t nalgos = NALGOS;
+	size_t nruns = 0;
 	bool bFirstTest = true;
 	bool bShuffle = false;
 	TesterP testers[NTESTS] = { };
@@ -276,6 +293,12 @@ int main(int argc, const char* argv[])
 		{
 			switch (arg[1])
 			{
+				case 'c':
+					if (arg[2] == 0)
+						{ argc--,argv++,arg=*argv; nruns = atoi(arg); }
+					else
+						nruns = atoi(arg+2);
+					break;
 				case 'n':
 					if (arg[2] == 0)
 						{ argc--,argv++,arg=*argv; nsizes = atoi(arg); }
@@ -342,50 +365,34 @@ int main(int argc, const char* argv[])
 	if (tests & TEST_SET)
 		testers[ntests++] = new SetTester();
 
-	/*
-	std::cout << "Algo,uSecs,NSize,NUnique,UniqueAlgorithm\n";
-	for (size_t i = 0; i < nsizes; i++)
-		for (size_t j = 0; j < nuniques; j++)
-			for (size_t k = 0; k < nalgos; k++)
-				for (size_t t = 0; t < ntests; t++)
-				{
-					size_t n = SizeCounts[i];
-					size_t u = UniqueCounts[j];
-					if (u > n) continue;
-					UniqueAlgorithm algo = Algos[k];
-					uint32* a = new uint32[n];
-					TesterP tp = testers[t];
-
-					FillArray(a, n, u, algo, bShuffle);
-					timeit.start();
-					tp->init(a, n);
-					tp->run(a, n, u);
-					tp->empty();
-					timeit.end();
-					std::cout << tp->name() << "," << timeit.micro() << ",";
-					std::cout << n << "," << u << "," << int(fill) << "\n";
-
-					delete[] a;
-				}
-	*/
-
 	// The Column Headers
 	std::cout << "Algo,Size,";
-	for (size_t j = 0; j < nuniques; j++)
+	size_t j = 0;
+	if (nruns == 1)
+		j = nuniques-1;
+	for (; j < nuniques; j++)
 		for (size_t k = 0; k < nalgos; k++)
 			std::cout << "U" << UniqueCounts[j] << "/" << ((k == 0) ? "L," : "R,");
+	std::cout << "WS";
 	std::cout << "\n";
+	size_t nWS = 0;
 
 	// The data
 	for (size_t t = 0; t < ntests; t++)
 	{
 		TesterP tp = testers[t];
-		for (size_t i = 0; i < nsizes; i++)
+		size_t i = 0;
+		if (nruns == 1)
+			i = nsizes-1;
+		for (; i < nsizes; i++)
 		{
 			size_t n = SizeCounts[i];
 			std::cout << tp->name() << "," << n << ",";
 
-			for (size_t j = 0; j < nuniques; j++)
+			size_t j = 0;
+			if (nruns == 1)
+				j = nuniques-1;
+			for (; j < nuniques; j++)
 			{
 				size_t u = UniqueCounts[j];
 
@@ -400,6 +407,7 @@ int main(int argc, const char* argv[])
 						timeit.start();
 						tp->init(a, n);
 						tp->run(a, n, u);
+						nWS = GetWorkingSet();
 						tp->empty();
 						timeit.end();
 
@@ -410,6 +418,7 @@ int main(int argc, const char* argv[])
 						std::cout << "_,";
 				}
 			}
+			std::cout << nWS;
 			std::cout << "\n";
 		}
 	}
